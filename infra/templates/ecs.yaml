@@ -62,6 +62,8 @@ Resources:
       RequiresCompatibilities:
         - FARGATE
       NetworkMode: awsvpc
+      RuntimePlatform: 
+        CpuArchitecture: ARM64
       Cpu: !Ref paramContainerCpu
       Memory: !Ref paramContainerMemory
       ExecutionRoleArn: !Ref ecsTaskExecutionRole
