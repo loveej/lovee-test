@@ -1,0 +1,174 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::LanguageExtensions'
+Description: Deploy a service on AWS Fargate, hosted in a private subnet and only accessible internally
+
+Parameters:
+  paramProjectName:
+    Type: String
+  paramVpcId:
+    Type: String
+  paramPublicSubnetIds:
+    Type: String
+  paramContainerImage:
+    Type: String
+  paramContainerPort:
+    Type: Number
+  paramContainerCpu:
+    Type: String
+  paramContainerMemory:
+    Type: String
+  paramDesiredCount:
+    Type: String
+  paramECRVersion:
+    Type: String
+  
+Resources:
+  # ECS Cluster
+  ecsCluster:
+    Type: 'AWS::ECS::Cluster'
+    Properties:
+      ClusterName: !Sub '${paramProjectName}-ecs-cluster'
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+  
+  # ECS Service
+  ecsService:
+    Type: 'AWS::ECS::Service'
+    DependsOn: ecsLoadBalancerListener
+    Properties:
+      Cluster: !Ref ecsCluster
+      ServiceName: !Sub '${paramProjectName}-ecs-service'
+      TaskDefinition: !Ref ecsTaskDefinition
+      DesiredCount: !Ref paramDesiredCount
+      HealthCheckGracePeriodSeconds: 30
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !Ref ecsSecurityGroup
+          Subnets: !Split [',', !Ref paramPublicSubnetIds]
+      LoadBalancers:
+        - ContainerName: !Sub '${paramProjectName}-ecs-container'
+          ContainerPort: !Ref paramContainerPort
+          TargetGroupArn: !Ref ecsTargetGroup
+  
+  # ECS Task Definition
+  ecsTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Sub '${paramProjectName}-ecs-task-definition'
+      RequiresCompatibilities:
+        - FARGATE
+      NetworkMode: awsvpc
+      Cpu: !Ref paramContainerCpu
+      Memory: !Ref paramContainerMemory
+      ExecutionRoleArn: !Ref ecsTaskExecutionRole
+      ContainerDefinitions:
+        - Cpu: !Ref paramContainerCpu
+          Memory: !Ref paramContainerMemory
+          Image: !Sub '${paramContainerImage}:${paramECRVersion}'
+          Name: !Sub '${paramProjectName}-ecs-container'
+          PortMappings:
+            - ContainerPort: !Ref paramContainerPort
+              HostPort: !Ref paramContainerPort
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref ecsLogGroup
+              awslogs-stream-prefix: !Ref paramProjectName
+              awslogs-region: !Ref AWS::Region
+
+  # ECS Task Execution Role
+  ecsTaskExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${paramProjectName}-ecs-task-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ecs-tasks.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  # ECS Log Group
+  ecsLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: !Sub '${paramProjectName}-ecs-log-group'
+  
+  # ECS Security Group
+  ecsSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${paramProjectName}-ecs-security-group'
+      GroupDescription: Security group for ECS service
+      VpcId: !Ref paramVpcId
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref paramContainerPort
+          ToPort: !Ref paramContainerPort
+          SourceSecurityGroupId: !Ref ecsLoadBalancerSecurityGroup
+  
+  # ECS Load Balancer Security Group
+  ecsLoadBalancerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupName: !Sub '${paramProjectName}-ecs-load-balancer-security-group'
+      GroupDescription: Security group for ECS load balancer
+      VpcId: !Ref paramVpcId
+      SecurityGroupIngress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+  
+  # ECS Load Balancer
+  ecsLoadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Name: !Sub '${paramProjectName}-alb'
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ecsLoadBalancerSecurityGroup
+      Subnets: !Split [',', !Ref paramPublicSubnetIds]
+
+  # ECS Target Group
+  ecsTargetGroup:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      Name: !Sub '${paramProjectName}-ecs-target-group'
+      Port: 80
+      Protocol: HTTP
+      VpcId: !Ref paramVpcId
+      HealthCheckPath: /
+      HealthCheckTimeoutSeconds: 5
+      UnhealthyThresholdCount: 2
+      TargetType: ip
+  
+  # ECS Load Balancer Listener
+  ecsLoadBalancerListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref ecsLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref ecsTargetGroup
+
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ecsCluster
+  AlbDnsName:
+    Description: The endpoint for the load balancer
+    Value: !GetAtt ecsLoadBalancer.DNSName

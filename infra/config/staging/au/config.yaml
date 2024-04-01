@@ -1,0 +1,10 @@
+region: ap-southeast-2
+desired_count: "2"
+public_subnet_ids: ["subnet-123", "subnet-456", subnet-789] # TODO: Replace with your public subnet IDs
+container_port: "3000"
+container_cpu: "256"
+container_memory: "512" 
+vpc_id: vpc-123456789 # TODO: Replace with your VPC ID
+stack_tags: 
+  env: staging
+  owner: !stack_attr default_tags.owner

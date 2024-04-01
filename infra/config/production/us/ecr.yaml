@@ -1,0 +1,6 @@
+template:
+  path: ecr.yaml
+  type: file
+
+parameters:
+  paramRepositoryName: !stack_attr project_name

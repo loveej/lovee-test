@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+Transform: AWS::LanguageExtensions
+Description: A service ECR repository.
+
+Parameters:
+  paramRepositoryName:
+    Type: String
+    Description: The name of the repository.
+
+Resources:
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Ref paramRepositoryName
+
+Outputs:
+  ECRRepositoryUri:
+    Description: The URI of the ECR repository.
+    Value: !GetAtt Repository.RepositoryUri  
+  ECRRepositoryArn:
+    Description: The ARN of the ECR repository.
+    Value: !GetAtt Repository.Arn
