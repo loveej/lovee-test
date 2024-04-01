@@ -1,0 +1,15 @@
+template:
+  path: ecs.yaml
+  type: file
+
+parameters:
+  paramProjectName: !stack_attr project_name
+  paramDesiredCount: !stack_attr desired_count
+  paramPublicSubnetIds: !stack_attr public_subnet_ids
+  paramContainerPort: !stack_attr container_port
+  paramContainerCpu: !stack_attr container_cpu
+  paramContainerMemory: !stack_attr container_memory
+  paramContainerImage: "1234567890.dkr.ecr.ap-southeast-2.amazonaws.com/sceptre-demo" # TODO: Update the container image URL
+  paramECRVersion: latest
+  paramVpcId: !stack_attr vpc_id
+  
