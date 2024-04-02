@@ -1,5 +1,8 @@
 name: Deploy ECR CF using Sceptre in different regions and environments
 on:
+  push:
+  branches:
+    - master
   workflow_call:
     inputs:
       env-name:
