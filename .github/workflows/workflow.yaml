@@ -1,0 +1,38 @@
+name: Deploy ECR CF using Sceptre in different regions and environments
+on:
+  workflow_call:
+    inputs:
+      env-name:
+        required: true
+        type: string
+jobs:
+  deploy_ecr:
+    name: 'Deploy to given environment'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.env-name }}
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        target: [au, us]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4 # More information on this action can be found below in the 'AWS Credentials' section
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
+          aws-region: aws-region-1
+      - name: Sceptre validate ECS template
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecs.yaml'
+      - name: Sceptre launch creation/updation ECS
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecs.yaml'
+    
