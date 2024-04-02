@@ -1,13 +1,16 @@
 name: Deploy ECR CF using Sceptre in different regions and environments
 on:
-  push:
-    branches:
-      - master
-  workflow_call:
+  workflow_dispatch:
     inputs:
       env-name:
         required: true
-        type: string
+        type: choice
+        description: The environment to deploy to.
+        default: development
+        options:
+          - development
+          - staging
+          - production
 jobs:
   deploy_ecr:
     name: 'Deploy to given environment'
