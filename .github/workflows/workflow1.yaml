@@ -1,12 +1,6 @@
 # These workflows don't really work yet. Created only to show usage of Scpetre Github Action.
 name: Deploy ECR CF using Sceptre in different regions and environments
 on:
-  pull_request:
-    branches:
-      - master
-  push:
-    branches:
-      - master
   workflow_dispatch:
     inputs:
       env-name:

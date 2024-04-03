@@ -1,5 +1,5 @@
 # These workflows don't really work yet. Created only to show usage of Scpetre Github Action.
-name: Deploy ECR CF using Sceptre in different regions and environments
+name: Deploy ECR CF using Sceptre - controlled flow
 on:
   pull_request:
     branches:
@@ -9,7 +9,7 @@ on:
       - master
       
 jobs:
-  deploy_ecr_dev:
+  deploy_ecr_development:
     name: 'Deploy to development'
     runs-on: ubuntu-latest
     environment: development
@@ -39,8 +39,9 @@ jobs:
           sceptre_directory: 'infra'
           sceptre_subcommand: 'validate development/${{ matrix.target }}/ecr.yaml'
     
-  deploy_ecr_stag:
+  deploy_ecr_staging:
     name: 'Deploy to staging'
+    needs: [ deploy_ecr_development ]
     runs-on: ubuntu-latest
     environment: staging
     permissions:
@@ -71,6 +72,7 @@ jobs:
   
   deploy_ecr_production:
     name: 'Deploy to production'
+    needs: [ deploy_ecr_development, deploy_ecr_staging ]
     runs-on: ubuntu-latest
     environment: production
     permissions:
