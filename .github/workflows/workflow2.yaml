@@ -1,5 +1,5 @@
 # These workflows don't really work yet. Created only to show usage of Scpetre Github Action.
-name: Deploy ECR CF using Sceptre - controlled flow
+name: Deploy ECS CF using Sceptre - controlled flow
 on:
   pull_request:
     branches:
@@ -7,9 +7,14 @@ on:
   push:
     branches:
       - master
-      
+
+env:
+  CONTAINER_IMAGE_DEV: "us-docker.pkg.dev/my-project/my-repo/my-image" 
+  CONTAINER_IMAGE_STG: "us-docker.pkg.dev/my-project/my-repo/my-image" 
+  CONTAINER_IMAGE_PROD: "us-docker.pkg.dev/my-project/my-repo/my-image" 
+
 jobs:
-  deploy_ecr_development:
+  deploy_ecs_development:
     name: 'Deploy to development'
     runs-on: ubuntu-latest
     environment: development
@@ -26,22 +31,22 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
           aws-region: aws-region-1
-      - name: Sceptre validate ECR template
+      - name: Sceptre validate ecs template
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate development/${{ matrix.target }}/ecr.yaml'
-      - name: Sceptre launch creation/updation ECR
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_DEV validate development/${{ matrix.target }}/ecs.yaml'
+      - name: Sceptre launch creation/updation ecs
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate development/${{ matrix.target }}/ecr.yaml'
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_DEV create development/${{ matrix.target }}/ecs.yaml'
     
-  deploy_ecr_staging:
+  deploy_ecs_staging:
     name: 'Deploy to staging'
-    needs: [ deploy_ecr_development ]
+    needs: [ deploy_ecs_development ]
     runs-on: ubuntu-latest
     environment: staging
     permissions:
@@ -57,22 +62,22 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
           aws-region: aws-region-1
-      - name: Sceptre validate ECR template
+      - name: Sceptre validate ecs template
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate staging/${{ matrix.target }}/ecr.yaml'
-      - name: Sceptre launch creation/updation ECR
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_STG validate staging/${{ matrix.target }}/ecs.yaml'
+      - name: Sceptre launch creation/updation ecs
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate staging/${{ matrix.target }}/ecr.yaml'
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_STG create staging/${{ matrix.target }}/ecs.yaml'
   
-  deploy_ecr_production:
+  deploy_ecs_production:
     name: 'Deploy to production'
-    needs: [ deploy_ecr_development, deploy_ecr_staging ]
+    needs: [ deploy_ecs_development, deploy_ecs_staging ]
     runs-on: ubuntu-latest
     environment: production
     permissions:
@@ -88,15 +93,15 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
           aws-region: aws-region-1
-      - name: Sceptre validate ECR template
+      - name: Sceptre validate ecs template
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate production/${{ matrix.target }}/ecr.yaml'
-      - name: Sceptre launch creation/updation ECR
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_PROD validate production/${{ matrix.target }}/ecs.yaml'
+      - name: Sceptre launch creation/updation ecs
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate production/${{ matrix.target }}/ecr.yaml'
+          sceptre_subcommand: '--var CONTAINER_IMAGE=$CONTAINER_IMAGE_PROD create production/${{ matrix.target }}/ecs.yaml'

@@ -38,5 +38,5 @@ jobs:
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecr.yaml'
+          sceptre_subcommand: 'create ${{ inputs.env-name }}/${{ matrix.target }}/ecr.yaml'
     
