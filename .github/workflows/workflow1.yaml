@@ -1,18 +1,22 @@
+# These workflows don't really work yet. Created only to show usage of Scpetre Github Action.
 name: Deploy ECR CF using Sceptre in different regions and environments
 on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       env-name:
+        description: Name of the environment to deploy to
+        type: string
         required: true
-        type: choice
-        description: The environment to deploy to.
         default: development
-        options:
-          - development
-          - staging
-          - production
+      
 jobs:
-  deploy_ecr:
+  deploy_ecr_dev:
     name: 'Deploy to given environment'
     runs-on: ubuntu-latest
     environment: ${{ inputs.env-name }}
@@ -29,16 +33,16 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
           aws-region: aws-region-1
-      - name: Sceptre validate ECS template
+      - name: Sceptre validate ECR template
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecs.yaml'
-      - name: Sceptre launch creation/updation ECS
+          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecr.yaml'
+      - name: Sceptre launch creation/updation ECR
         uses: Sceptre/github-ci-action@master
         with:
           sceptre_version: '4.2.2'
           sceptre_directory: 'infra'
-          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecs.yaml'
+          sceptre_subcommand: 'validate ${{ inputs.env-name }}/${{ matrix.target }}/ecr.yaml'
     

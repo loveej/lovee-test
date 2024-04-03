@@ -1,0 +1,100 @@
+# These workflows don't really work yet. Created only to show usage of Scpetre Github Action.
+name: Deploy ECR CF using Sceptre in different regions and environments
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+      
+jobs:
+  deploy_ecr_dev:
+    name: 'Deploy to development'
+    runs-on: ubuntu-latest
+    environment: development
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        target: [au, us]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4 # More information on this action can be found below in the 'AWS Credentials' section
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
+          aws-region: aws-region-1
+      - name: Sceptre validate ECR template
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate development/${{ matrix.target }}/ecr.yaml'
+      - name: Sceptre launch creation/updation ECR
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate development/${{ matrix.target }}/ecr.yaml'
+    
+  deploy_ecr_stag:
+    name: 'Deploy to staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        target: [au, us]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4 # More information on this action can be found below in the 'AWS Credentials' section
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
+          aws-region: aws-region-1
+      - name: Sceptre validate ECR template
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate staging/${{ matrix.target }}/ecr.yaml'
+      - name: Sceptre launch creation/updation ECR
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate staging/${{ matrix.target }}/ecr.yaml'
+  
+  deploy_ecr_production:
+    name: 'Deploy to production'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      matrix:
+        target: [au, us]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4 # More information on this action can be found below in the 'AWS Credentials' section
+        with:
+          role-to-assume: arn:aws:iam::123456789012:role/my-github-actions-role
+          aws-region: aws-region-1
+      - name: Sceptre validate ECR template
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate production/${{ matrix.target }}/ecr.yaml'
+      - name: Sceptre launch creation/updation ECR
+        uses: Sceptre/github-ci-action@master
+        with:
+          sceptre_version: '4.2.2'
+          sceptre_directory: 'infra'
+          sceptre_subcommand: 'validate production/${{ matrix.target }}/ecr.yaml'
