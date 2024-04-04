@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: An ACM certificate for the organisation balance service
+
+Resources:
+
+  ACMCertificate:
+    Type: AWS::CertificateManager::Certificate
+    Properties:
+      DomainName: lovee.prezzee-dev.com
+      DomainValidationOptions:
+        - DomainName: lovee.prezzee-dev.com
+          HostedZoneId: Z0189382PFI9MXHPN86L
+      ValidationMethod: DNS
+
+Outputs:
+
+  CertificateArn:
+    Value: !Ref ACMCertificate
+    Description: The ARN of the domains certificate.

@@ -9,7 +9,7 @@ parameters:
   paramContainerPort: !stack_attr container_port
   paramContainerCpu: !stack_attr container_cpu
   paramContainerMemory: !stack_attr container_memory
-  paramContainerImage: {{ var.CONTAINER_IMAGE }}
+  paramContainerImage: !stack_output development/au/ecr.yaml::ECRRepositoryUri
   paramECRVersion: latest
   paramVpcId: !stack_attr vpc_id
   

@@ -1,0 +1,380 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::LanguageExtensions'
+Description: Deploy a service on AWS Fargate, hosted in a private subnet and only accessible internally
+
+Parameters:
+  paramProjectName:
+    Type: String
+  paramDomainName:
+    Type: String
+  paramVpcId:
+    Type: String
+  paramPrivateSubnetIds:
+    Type: String
+  paramPublicSubnetIds:
+    Type: String
+  paramDynamoDBTableName:
+    Type: String
+  paramDynamoDBTableArn:
+    Type: String
+  paramContainerImage:
+    Type: String
+  paramContainerPort:
+    Type: Number
+  paramRegionShort:
+    Type: String
+  paramContainerCpu:
+    Type: String
+  paramContainerMemory:
+    Type: String
+  paramDesiredCount:
+    Type: String
+  paramLoadBalancerCertArn:
+    Type: String
+  paramHostedZoneId:
+    Type: String
+  paramDDService:
+    Type: String
+  paramEnvironment:
+    Type: String
+  paramEnvironmentFullName:
+    Type: String
+  paramDDKey:
+    Type: String
+    Description: Datadog agent key
+  paramECRVersion:
+    Type: String
+  paramWeight:
+    Type: String
+    Default: 1
+  paramMaxCapacity:
+    Type: Number
+    Default: 3
+
+Conditions:
+  DevOrModelEnvironments: !Or [!Equals [dev, !Ref paramEnvironment], !Equals [model, !Ref paramEnvironment]]
+  OtherEnvironments: !Not [!Or [!Equals [dev, !Ref paramEnvironment], !Equals [model, !Ref paramEnvironment]]]
+
+Resources:
+  #### ECS Resources ####
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${paramProjectName}-cluster
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+  ContainerLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      RetentionInDays: 30
+
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${paramProjectName}-${paramRegionShort}-ecstaskexec
+      AssumeRolePolicyDocument:
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: [ecs-tasks.amazonaws.com]
+          Action: ['sts:AssumeRole']
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  {% comment %} ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${paramProjectName}-${paramRegionShort}-ecstaskrole
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+        Version: 2012-10-17
+      Policies:
+        - PolicyName: ecs-service
+          PolicyDocument:
+            Statement:
+              - Action: 'dynamodb:*'
+                Effect: Allow
+                Resource: !Ref paramDynamoDBTableArn
+            Version: 2012-10-17 {% endcomment %}
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    UpdateReplacePolicy: Retain
+    DeletionPolicy: Retain
+    Properties:
+      Family: !Sub ${paramProjectName}-taskdef
+      Cpu: !Ref paramContainerCpu
+      Memory: !Ref paramContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      {% comment %} TaskRoleArn: !GetAtt ECSTaskRole.Arn {% endcomment %}
+      ContainerDefinitions:
+        - Name: !Sub ${paramProjectName}-container
+          Cpu: !Ref paramContainerCpu
+          Memory: !Ref paramContainerMemory
+          Image: !Ref paramContainerImage
+          Environment:
+            - Name: PORT
+              Value: !Ref paramContainerPort
+            - Name: ENV
+              Value: !Ref paramEnvironment
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            {% comment %} - Name: DYNAMODB_TABLE
+              Value: !Ref paramDynamoDBTableName {% endcomment %}
+            - Name: BUILD_VERSION
+              Value: !Ref paramECRVersion
+          PortMappings:
+            - ContainerPort: !Ref paramContainerPort
+              HostPort: !Ref paramContainerPort
+              Protocol: tcp
+          LogConfiguration:
+            {% comment %} LogDriver: awsfirelens
+            Options:
+              Name: datadog
+              TLS: 'on'
+              apiKey: !Ref paramDDKey
+              compress: gzip
+              dd_message_key: log
+              dd_service: !Ref paramDDService
+              dd_source: nodejs
+              dd_tags: !Sub env:${paramEnvironmentFullName},region:${AWS::Region},country:global
+              provider: ecs
+        - Name: datadog-agent
+          Image: 'public.ecr.aws/datadog/agent:latest'
+          PortMappings:
+            - ContainerPort: 8126
+              HostPort: 8126
+              Protocol: tcp
+          Environment:
+            - Name: DD_API_KEY
+              Value: !Ref paramDDKey
+            - Name: ECS_FARGATE
+              Value: true
+            - Name: DD_APM_ENABLED
+              Value: true
+            - Name: DD_APM_NON_LOCAL_TRAFFIC
+              Value: true
+            - Name: DD_PROCESS_AGENT_ENABLED
+              Value: true
+            - Name: DD_SYSTEM_PROBE_ENABLED
+              Value: true
+            - Name: DD_SYSTEM_PROBE_NETWORK_ENABLED
+              Value: true
+            - Name: DD_ENV
+              Value: !Ref paramEnvironmentFullName
+            - Name: DD_SERVICE
+              Value: !Ref paramDDService
+            - Name: DD_VERSION
+              Value: !Ref paramECRVersion
+        - Name: log-router
+          Essential: true
+          Image: 'amazon/aws-for-fluent-bit:latest'
+          FirelensConfiguration:
+            Type: fluentbit
+            Options:
+              enable-ecs-log-metadata: true
+          MemoryReservation: 50 {% endcomment %}
+
+  ECSService:
+    Type: AWS::ECS::Service
+    DependsOn: ALBHTTPListener
+    Properties:
+      ServiceName: !Sub ${paramProjectName}-service
+      Cluster: !Ref ECSCluster
+      LaunchType: FARGATE
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 100
+        DeploymentCircuitBreaker:
+          Enable: True
+          Rollback: True # If set to true, CFN Stack performs a rollback. The successful rollback will trigger a pipeline failure using image_url and taskdefinition check
+      DesiredCount: !Ref 'paramDesiredCount'
+      EnableExecuteCommand: true # TODO: Work out if we want this and for which environment. Requires docker image changes. (mobile kinda has this)
+      HealthCheckGracePeriodSeconds: 60
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref FargateContainerSecurityGroup
+          Subnets: !Split [',', !Ref paramPrivateSubnetIds]
+      TaskDefinition: !Ref 'TaskDefinition'
+      LoadBalancers:
+        - ContainerName: !Sub ${paramProjectName}-container
+          ContainerPort: !Ref paramContainerPort
+          TargetGroupArn: !Ref TargetGroup
+      EnableECSManagedTags: true
+      PropagateTags: SERVICE
+
+  FargateContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${paramProjectName}-containersecuritygroup
+      GroupDescription: Access to the Fargate containers
+      VpcId: !Ref paramVpcId
+    # TODO: Add ingress/egress security group rules between the ALB and the container
+  FargateContainerSecurityGroupALBIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: Ingress on container port from the ALB
+      GroupId: !Ref FargateContainerSecurityGroup
+      IpProtocol: tcp
+      FromPort: !Ref paramContainerPort
+      ToPort: !Ref paramContainerPort
+      SourceSecurityGroupId: !Ref InternalApplicationLoadBalancerSecurityGroup
+
+  ECSScalableTarget:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      MaxCapacity: !Ref paramMaxCapacity
+      MinCapacity: 1
+      RoleARN: !Sub 'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/ecs.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_ECSService'
+      ServiceNamespace: ecs
+      ScalableDimension: 'ecs:service:DesiredCount'
+      ResourceId: !Sub 'service/${ECSCluster}/${ECSService.Name}'
+
+  ECSScalingPolicyCPU:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${paramProjectName}-ecs-cpu-target-tracking
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70
+        ScaleInCooldown: 30
+        ScaleOutCooldown: 90
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageCPUUtilization
+
+  ECSScalingPolicyMem:
+    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+    Properties:
+      PolicyName: !Sub ${paramProjectName}-ecs-mem-target-tracking
+      PolicyType: TargetTrackingScaling
+      ScalingTargetId: !Ref ECSScalableTarget
+      TargetTrackingScalingPolicyConfiguration:
+        TargetValue: 70
+        ScaleInCooldown: 30
+        ScaleOutCooldown: 90
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ECSServiceAverageMemoryUtilization
+
+  #### Internal ALB Resources ####
+
+  InternalApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub ${paramProjectName}-alb
+      Type: application
+      Scheme: internal
+      IpAddressType: ipv4
+      Subnets: !If
+        - DevOrModelEnvironments
+        - !Split [',', !Ref paramPublicSubnetIds] # Deploy to public subnet only in dev and model env. Read more: docs/INFRA.md
+        - !Split [',', !Ref paramPrivateSubnetIds]
+      SecurityGroups:
+        - !Ref InternalApplicationLoadBalancerSecurityGroup
+
+  InternalApplicationLoadBalancerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${paramProjectName}-internalalbsecuritygroup
+      GroupDescription: Access to the internal application load balancers
+      VpcId: !Ref paramVpcId
+
+  {% for cidr in sceptre_user_data.cidr_list %}sgingress{{ cidr.name }}:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      CidrIp: {{cidr.ip}}
+      Description: {{cidr.description}}
+      IpProtocol: -1
+      GroupId: !GetAtt InternalApplicationLoadBalancerSecurityGroup.GroupId
+  {% endfor %}
+
+  InternalApplicationLoadBalancerDnsARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Ref paramDomainName
+      HostedZoneId: !Ref paramHostedZoneId
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt InternalApplicationLoadBalancer.DNSName
+        HostedZoneId: !GetAtt InternalApplicationLoadBalancer.CanonicalHostedZoneID
+      SetIdentifier: !Ref AWS::Region
+      Weight: !If
+        - DevOrModelEnvironments
+        - !Ref paramWeight # Weighted routing to be used only in dev and model env. Read more: docs/INFRA.md
+        - !Ref AWS::NoValue
+      Region: !If
+        - OtherEnvironments
+        - !Ref AWS::Region # Latency based routing in all other environments except dev and model.
+        - !Ref AWS::NoValue
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub ${paramProjectName}-tg
+      # NOTE: For consistency, these should match that of the Docker containers HEALTHCHECK
+      HealthCheckIntervalSeconds: 5
+      HealthCheckPath: /ping
+      HealthCheckTimeoutSeconds: 2
+      Matcher:
+        HttpCode: 200
+      Port: 80
+      Protocol: HTTP
+      TargetType: ip
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref paramVpcId
+
+  # Redirect HTTP traffic to HTTPS
+  ALBHTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: 'redirect'
+          RedirectConfig:
+            Protocol: 'HTTPS'
+            Port: 443
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+            StatusCode: 'HTTP_301'
+      Port: 80
+      Protocol: 'HTTP'
+      LoadBalancerArn: !Ref InternalApplicationLoadBalancer
+
+  ALBHTTPSListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          ForwardConfig:
+            TargetGroups:
+              - TargetGroupArn: !Ref TargetGroup
+      Port: 443
+      Protocol: 'HTTPS'
+      Certificates:
+        - CertificateArn: !Ref paramLoadBalancerCertArn
+      SslPolicy: ELBSecurityPolicy-2016-08 # TODO: Change this? Aws recommends ELBSecurityPolicy-TLS13-1-2-2021-06 but mobile uses ELBSecurityPolicy-2016-08
+      LoadBalancerArn: !Ref InternalApplicationLoadBalancer
+
+Outputs:
+  ClusterName:
+    Description: The name of the ECS cluster
+    Value: !Ref ECSCluster
+  ClusterArn:
+    Description: The ARN of the ECS cluster
+    Value: !GetAtt ECSCluster.Arn 
+  AlbDnsName:
+    Description: The endpoint for the load balancer
+    Value: !GetAtt InternalApplicationLoadBalancer.DNSName

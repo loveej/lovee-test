@@ -1,10 +1,10 @@
 region: ap-southeast-2
 desired_count: "2"
-public_subnet_ids: ["subnet-123", "subnet-456", subnet-789] # TODO: Replace with your public subnet IDs
+public_subnet_ids: ["subnet-0b90bd3268a7c3480", "subnet-0ddc9829be2e0a475", "subnet-02a5c3e0920aeb486"]
 container_port: "3000"
 container_cpu: "256"
 container_memory: "512" 
-vpc_id: vpc-123456789 # TODO: Replace with your VPC ID
+vpc_id: vpc-0461d04ea2d087816
 stack_tags: 
   env: development
   owner: !stack_attr default_tags.owner

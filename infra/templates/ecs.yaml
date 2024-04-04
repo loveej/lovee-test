@@ -35,7 +35,7 @@ Resources:
   # ECS Service
   ecsService:
     Type: 'AWS::ECS::Service'
-    DependsOn: ecsLoadBalancerListener
+    DependsOn: ecsLoadBalancerListenerHTTP
     Properties:
       Cluster: !Ref ecsCluster
       ServiceName: !Sub '${paramProjectName}-ecs-service'
@@ -157,15 +157,46 @@ Resources:
       TargetType: ip
   
   # ECS Load Balancer Listener
-  ecsLoadBalancerListener:
+  ecsLoadBalancerListenerHTTP:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
     Properties:
       LoadBalancerArn: !Ref ecsLoadBalancer
       Port: 80
       Protocol: HTTP
       DefaultActions:
+        - Type: redirect
+          RedirectConfig:
+            Protocol: HTTPS
+            Port: '443'
+            StatusCode: HTTP_301
+            Host: '#{host}'
+            Path: '/#{path}'
+            Query: '#{query}'
+  
+  ecsLoadBalancerListenerHTTPS:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      LoadBalancerArn: !Ref ecsLoadBalancer
+      Port: 443
+      Protocol: HTTPS
+      DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref ecsTargetGroup
+      Certificates:
+        - CertificateArn: "arn:aws:acm:ap-southeast-2:764385434156:certificate/1af60d1a-1f9b-47b1-8672-0c3a3f03b6b6"
+      SslPolicy: ELBSecurityPolicy-2016-08 
+  
+  ecsLoadBalancerDnsARecord:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: lovee.prezzee-dev.com
+      HostedZoneId: Z0189382PFI9MXHPN86L
+      Type: A
+      AliasTarget:
+        DNSName: !GetAtt ecsLoadBalancer.DNSName
+        HostedZoneId: !GetAtt ecsLoadBalancer.CanonicalHostedZoneID
+      SetIdentifier: !Ref AWS::Region
+      Weight: 2
 
 Outputs:
   ClusterName:
