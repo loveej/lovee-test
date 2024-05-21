@@ -5,6 +5,14 @@ on:
     branches:
       - test-github-secrets
   workflow_dispatch:
+    inputs:
+      env-name:
+        description: Name of the environment to deploy to
+        type: string
+        required: true
+        default: dev
+
+
 
 jobs:
   job1:
