@@ -25,6 +25,6 @@ jobs:
     steps:
       - name: test github secrets
         run: |
-          api_key_json=${{ secrets.TEST }}
-          echo "Extracted API Key JSON: $api_key_json"
+          entire_env_json=$(echo "${{ secrets.TEST }}")
+          processed_env_json=$(echo "$entire_env_json" | jq -r '{} | . += . as {}')
     
