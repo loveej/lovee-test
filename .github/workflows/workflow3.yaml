@@ -25,6 +25,6 @@ jobs:
     steps:
       - name: test github secrets
         run: |
-          api_key_json=$(echo "${{ secrets.TEST }}" | jq -r '.TEST')
+          api_key_json=${{ secrets.TEST }}
           echo "Extracted API Key JSON: $api_key_json"
     
