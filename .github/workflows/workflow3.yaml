@@ -26,5 +26,4 @@ jobs:
       - name: test github secrets
         run: |
           entire_env_json=$(echo "${{ secrets.TEST }}")
-          processed_env_json=$(echo "$entire_env_json" | jq -r '.')
     
