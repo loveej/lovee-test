@@ -1,9 +1,6 @@
 # This workflow is to test Github secrets
 name: Test github secrets
 on:
-  push:
-    branches:
-      - test-github-secrets
   workflow_dispatch:
     inputs:
       env-name:
@@ -11,6 +8,9 @@ on:
         type: string
         required: true
         default: dev
+  push:
+    branches:
+      - test-github-secrets
 
 
 
@@ -26,5 +26,5 @@ jobs:
       - name: test github secrets
         run: |
           entire_env_json=$(echo "${{ secrets.TEST }}")
-          processed_env_json=$(echo "$entire_env_json" | jq -r '{} | . += . as {}')
+          processed_env_json=$(echo "$entire_env_json" | jq -r '.')
     
